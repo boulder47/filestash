@@ -1,24 +1,34 @@
 // Command licensegen generates and verifies Filestash license keys for TESTING
 // the plg_license code path against your own builds.
 //
-// It reuses the project's own crypto (server/pkg/utils). With the default
-// secret it is byte-compatible with the stock loader; the -secret flag lets you
-// target a custom/white-labeled build that was compiled with a different key.
-// There is no vendor secret involved - the stock key ships in the public source.
+// It is self-contained (standard library only) and reimplements the exact
+// wire format of server/pkg/utils (zlib -> AES-GCM -> base64url), so it builds
+// and runs from a clean checkout with no `go generate` step and no extra
+// modules:
 //
 //   generate: go run ./tools/licensegen -name "Acme QA" -expiry 8760h
 //   custom:   go run ./tools/licensegen -name QA -expiry 8760h -secret mykey
 //   verify:   go run ./tools/licensegen -verify <LICENSE_STRING> [-secret mykey]
+//
+// With the default secret the output is byte-compatible with the stock loader
+// (server/plugin/plg_license). There is no vendor secret involved - the stock
+// key ships in the public source as fmt.Sprintf("%-16s", "filestash").
 package main
 
 import (
+	"bytes"
+	"compress/zlib"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"time"
-
-	"github.com/mickael-kerjean/filestash/server/pkg/utils"
 )
 
 // Default matches the stock loader: fmt.Sprintf("%-16s", "filestash").
@@ -41,6 +51,92 @@ func deriveKey(secret string) (string, error) {
 		return "", fmt.Errorf("secret is %d bytes; must be <=16 (padded to AES-128) or exactly 24/32 bytes", len(secret))
 	}
 }
+
+// --- wire format, identical to server/pkg/utils ---------------------------
+
+func compress(data []byte) ([]byte, error) {
+	var b bytes.Buffer
+	w := zlib.NewWriter(&b)
+	if _, err := w.Write(data); err != nil {
+		return nil, err
+	}
+	if err := w.Close(); err != nil {
+		return nil, err
+	}
+	return b.Bytes(), nil
+}
+
+func decompress(data []byte) ([]byte, error) {
+	r, err := zlib.NewReader(bytes.NewReader(data))
+	if err != nil {
+		return nil, err
+	}
+	defer r.Close()
+	return io.ReadAll(r)
+}
+
+func encryptAESGCM(key, plaintext []byte) ([]byte, error) {
+	c, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+	gcm, err := cipher.NewGCM(c)
+	if err != nil {
+		return nil, err
+	}
+	nonce := make([]byte, gcm.NonceSize())
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		return nil, err
+	}
+	return gcm.Seal(nonce, nonce, plaintext, nil), nil
+}
+
+func decryptAESGCM(key, ciphertext []byte) ([]byte, error) {
+	c, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+	gcm, err := cipher.NewGCM(c)
+	if err != nil {
+		return nil, err
+	}
+	ns := gcm.NonceSize()
+	if len(ciphertext) < ns {
+		return nil, errors.New("ciphertext too short")
+	}
+	nonce, ct := ciphertext[:ns], ciphertext[ns:]
+	return gcm.Open(nil, nonce, ct, nil)
+}
+
+func encryptString(secret, data string) (string, error) {
+	d, err := compress([]byte(data))
+	if err != nil {
+		return "", err
+	}
+	d, err = encryptAESGCM([]byte(secret), d)
+	if err != nil {
+		return "", err
+	}
+	return base64.URLEncoding.EncodeToString(d), nil
+}
+
+func decryptString(secret, data string) (string, error) {
+	d, err := base64.URLEncoding.DecodeString(data)
+	if err != nil {
+		return "", err
+	}
+	d, err = decryptAESGCM([]byte(secret), d)
+	if err != nil {
+		return "", err
+	}
+	d, err = decompress(d)
+	if err != nil {
+		return "", err
+	}
+	return string(d), nil
+}
+
+// --------------------------------------------------------------------------
 
 func main() {
 	var (
@@ -82,14 +178,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	out, err := utils.EncryptString(key, string(payload))
+	out, err := encryptString(key, string(payload))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "encrypt: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Self-check: round-trip through the real decrypt so we never emit a dud.
-	if back, err := utils.DecryptString(key, out); err != nil || back != string(payload) {
+	// Self-check: round-trip so we never emit a dud.
+	if back, err := decryptString(key, out); err != nil || back != string(payload) {
 		fmt.Fprintf(os.Stderr, "self-check failed: err=%v\n", err)
 		os.Exit(1)
 	}
@@ -117,7 +213,7 @@ func parseExpiry(s string) (time.Time, error) {
 }
 
 func doVerify(key, sec, s string) {
-	data, err := utils.DecryptString(key, s)
+	data, err := decryptString(key, s)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "decrypt failed with secret %q (keylen=%d): %v\n", sec, len(key), err)
 		os.Exit(1)
