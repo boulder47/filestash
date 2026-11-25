@@ -13,6 +13,11 @@ import (
 	. "github.com/mickael-kerjean/filestash/server/pkg/utils"
 )
 
+// telemetryDisabled hard-disables the upstream phone-home in this fork.
+// It is a compile-time constant so that no config value (log.telemetry) can
+// ever re-enable the POST to downloads.filestash.app. See docs/ASSESSMENT.md.
+const telemetryDisabled = true
+
 var (
 	telemetry = Telemetry{Data: make([]LogEntry, 0)}
 	version   = APP_VERSION + "." + BUILD_DATE
@@ -113,6 +118,9 @@ func logger(ctx *App, res *ResponseWriter, req *http.Request) {
 }
 
 func (this *Telemetry) Record(point LogEntry) {
+	if telemetryDisabled {
+		return
+	}
 	point.Duration *= 10
 	this.mu.Lock()
 	this.Data = append(this.Data, point)
@@ -120,6 +128,9 @@ func (this *Telemetry) Record(point LogEntry) {
 }
 
 func (this *Telemetry) Flush() {
+	if telemetryDisabled {
+		return
+	}
 	if len(this.Data) == 0 {
 		return
 	}
