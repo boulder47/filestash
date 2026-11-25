@@ -16,7 +16,8 @@ package-lock.json
 *.swo
 .tern-port
 .tern-project.js
-*_test.go
+# fork: keep Go unit tests in-repo (upstream ignores *_test.go and keeps tests
+# in the external filestash-test repo). See docs/ASSESSMENT.md §4.A.
 cover.*
 www
 
