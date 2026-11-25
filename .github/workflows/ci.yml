@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+
+      - name: Download modules
+        run: go mod download
+
+      # Build-time constants normally produced by `make init` / `go generate`.
+      # env + mime are all that the library packages and tests need.
+      - name: Generate build constants (env, mime)
+        run: |
+          (cd server/pkg/env && go run generator.go)
+          (cd server/pkg/mime && go run generator.go)
+
+      # Scoped to fork-owned package(s): upstream still carries some vet debt
+      # (e.g. copy-lock in pkg/utils/cache.go). Broaden once that is cleared.
+      - name: Vet (fork-owned packages)
+        run: go vet ./server/pkg/core/coretest/
+
+      - name: Unit tests
+        run: go test ./server/pkg/...
+
+      - name: Compile library packages (CGO-free)
+        run: CGO_ENABLED=0 go build ./server/pkg/...
+
+      # Full server binary, matching the release build: pure-Go image plugin
+      # and CGO-free sqlite FTS. `go generate ./server/...` here also fetches the
+      # console plugins' web assets (needs network; available on GitHub runners).
+      - name: Build server binary (CGO-free, fts5)
+        run: |
+          sed -i 's|plg_image_c|plg_image_golang|' server/plugin/index.go
+          go generate ./server/...
+          CGO_ENABLED=0 go build -trimpath --tags fts5 -o dist/filestash cmd/main.go
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: filestash-linux-amd64
+          path: dist/filestash
+          if-no-files-found: error

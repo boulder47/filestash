@@ -7,10 +7,10 @@ Living status for the work in `IMPLEMENTATION_PLAN.md`. Update the **Status** co
 ## Phase 0 — Foundations
 | ID | Item | Hook / area | Effort | Status | Owner | PR | Notes |
 |----|------|-------------|:------:|:------:|-------|----|-------|
-| F-1 | GitHub Actions CI (build/vet/test) | repo | S | ⬜ | | | amd64+arm64, CGO-free |
-| F-2 | Unit-test seed + `fakeBackend` | utils/core | S | ⬜ | | | crypto, paths, Form JSON |
-| F-3 | Hard-disable telemetry | middleware | S | ⬜ | | | ~5-line patch |
-| F-4 | Plugin-authoring dev doc | docs | S | ⬜ | | | |
+| F-1 | GitHub Actions CI (build/vet/test) | repo | S | ✅ | claude | `impl/phase0-foundations` | `.github/workflows/ci.yml`; amd64, CGO-free + fts5 |
+| F-2 | Unit-test seed + `fakeBackend` | utils/core | S | ✅ | claude | `impl/phase0-foundations` | crypto, path, GenerateID tests + in-memory `coretest.FakeBackend` |
+| F-3 | Hard-disable telemetry | middleware | S | ✅ | claude | `impl/phase0-foundations` | `telemetryDisabled` const guards `Record`/`Flush` |
+| F-4 | Plugin-authoring dev doc | docs | S | ⬜ | | | lifecycle partly covered in ASSESSMENT.md §2 |
 
 ## Phase 1 — Security & auditability
 | ID | Item | Hook | Effort | Status | Owner | PR | Notes |
@@ -59,4 +59,4 @@ Living status for the work in `IMPLEMENTATION_PLAN.md`. Update the **Status** co
 `F-1` → `F-2` → `F-3` → `OPS-5` (hello-world plugin) → `SEC-1` (highest-value security feature).
 
 ## Changelog
-- _(add dated entries as items change status)_
+- 2026-11-25 — Phase 0 started on `impl/phase0-foundations`: F-1 (CI), F-2 (unit-test seed + FakeBackend), F-3 (telemetry hard-disabled). Verified locally: `go test ./server/pkg/...` green, `go build ./server/pkg/...` CGO-free green, `coretest` vet clean.
