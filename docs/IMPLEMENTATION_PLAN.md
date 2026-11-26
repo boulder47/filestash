@@ -48,10 +48,10 @@ Feature ideas are distilled from [`sambee-app/sambee`](https://github.com/sambee
 - **What:** per-identity + per-IP throttle and temporary lockout on repeated auth failures; audit the lockouts (ties to SEC-1).
 - **Approach:** extend/replace `plg_security_authlock`; sliding-window counter in an `AppCache`.
 
-### SEC-4 — Per-directory authorisation policy · `AuthorisationMiddleware(IAuthorisation)` · **M**
-- **What:** grant/deny by connection + path prefix + action (list/read/write/delete), per user/group.
-- **Why:** passthrough today inherits whatever SMB allows; this adds an app-level policy layer and makes least-privilege explicit.
-- **Data:** policy rules in config or DB; evaluated in request pipeline.
+### SEC-4 — Per-directory authorisation policy · `plg_authorisation_rules` · **M** · ✅
+- **Done:** an `IAuthorisation` plugin with a first-match-wins rule engine — rules of `{users, paths (prefix), actions (read/write/*), effect}` evaluated against the session user, the mapped action, and the path. `Ls` gates listability; the write methods gate capability flags, so a read-only rule yields a read-only view.
+- **Safety:** guaranteed no-op unless `authorisation.enable` (default false); configurable default decision (`authorisation.default`, default allow); and it **fails open** — invalid rules JSON disables enforcement and logs, so it can never lock users out. Rules reload on config change.
+- **Still open:** group-based matching (only per-user today) and a DB-backed rule store; a nicer admin editor than the JSON field.
 
 **Exit criteria:** every auth path logged; OIDC usable alongside SMB passthrough; lockout + per-dir policy enforced and tested.
 

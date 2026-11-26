@@ -33,7 +33,7 @@ jobs:
         run: go vet ./server/pkg/core/coretest/
 
       - name: Unit tests
-        run: go test ./server/pkg/... ./server/plugin/plg_handler_metrics/ ./server/plugin/plg_audit_log/ ./server/plugin/plg_backend_samba/ ./server/plugin/plg_handler_locks/
+        run: go test ./server/pkg/... ./server/plugin/plg_handler_metrics/ ./server/plugin/plg_audit_log/ ./server/plugin/plg_backend_samba/ ./server/plugin/plg_handler_locks/ ./server/plugin/plg_authorisation_rules/
 
       - name: Compile library packages (CGO-free)
         run: CGO_ENABLED=0 go build ./server/pkg/...
