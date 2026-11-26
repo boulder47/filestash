@@ -45,7 +45,7 @@ Living status for the work in `IMPLEMENTATION_PLAN.md`. Update the **Status** co
 | OPS-2 | Cross-connection copy/move | core | M | ⬜ | | | |
 | OPS-3 | Recent files/dirs | `Metadata`+widget | S | ⬜ | | | extend recent widget |
 | OPS-4 | Mobile UI + theming | `Static`/`CSS` | M | ⬜ | | | |
-| OPS-5 | Prometheus `/metrics` | `HttpEndpoint` | S | ⬜ | | | good first plugin |
+| OPS-5 | Prometheus `/metrics` | `HttpEndpoint` | S | ✅ | claude | `impl/ops5-metrics` | `plg_handler_metrics`, dependency-free text exposition + request middleware |
 
 ## Phase 5 — Secure sharing & desktop (optional, largest)
 | ID | Item | Effort | Status | Owner | PR | Notes |
@@ -60,3 +60,4 @@ Living status for the work in `IMPLEMENTATION_PLAN.md`. Update the **Status** co
 
 ## Changelog
 - 2026-11-25 — Phase 0 started on `impl/phase0-foundations`: F-1 (CI), F-2 (unit-test seed + FakeBackend), F-3 (telemetry hard-disabled). Verified locally: `go test ./server/pkg/...` green, `go build ./server/pkg/...` CGO-free green, `coretest` vet clean.
+- 2026-11-26 — OPS-5 on `impl/ops5-metrics`: `plg_handler_metrics` (Prometheus `/metrics`, dependency-free). Plugin build/vet/test green; confirmed it links into the full CGO-free `fts5` binary. First plugin — proves the `init()`+`Hooks.Register` loop end to end.
