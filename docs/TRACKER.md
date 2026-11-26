@@ -15,7 +15,7 @@ Living status for the work in `IMPLEMENTATION_PLAN.md`. Update the **Status** co
 ## Phase 1 — Security & auditability
 | ID | Item | Hook | Effort | Status | Owner | PR | Notes |
 |----|------|------|:------:|:------:|-------|----|-------|
-| SEC-1 | Audit log + admin viewer | `AuditEngine` | M | ⬜ | | | do first; feeds SEC-3/OPS-1 |
+| SEC-1 | Audit log + admin viewer | `AuditEngine` | M | ✅ | claude | `impl/sec1-audit-log` | `plg_audit_log`: sqlite store, capture middleware, 24h save dedup, retention, admin viewer |
 | SEC-2 | Generic OIDC/OAuth2 auth | `AuthenticationMiddleware` | M | ⬜ | | | composes w/ attribute_mapping |
 | SEC-3 | Auth rate-limit / lockout | `Middleware` | S–M | ⬜ | | | extend `plg_security_authlock` |
 | SEC-4 | Per-directory authz policy | `IAuthorisation` | M | ⬜ | | | connection+path+action |
@@ -61,3 +61,4 @@ Living status for the work in `IMPLEMENTATION_PLAN.md`. Update the **Status** co
 ## Changelog
 - 2026-11-25 — Phase 0 started on `impl/phase0-foundations`: F-1 (CI), F-2 (unit-test seed + FakeBackend), F-3 (telemetry hard-disabled). Verified locally: `go test ./server/pkg/...` green, `go build ./server/pkg/...` CGO-free green, `coretest` vet clean.
 - 2026-11-26 — OPS-5 on `impl/ops5-metrics`: `plg_handler_metrics` (Prometheus `/metrics`, dependency-free). Plugin build/vet/test green; confirmed it links into the full CGO-free `fts5` binary. First plugin — proves the `init()`+`Hooks.Register` loop end to end.
+- 2026-11-26 — SEC-1 on `impl/sec1-audit-log`: `plg_audit_log` — sqlite store (modernc, CGO-free), capture middleware over the file API (reads status via the core ResponseWriter, no wrapping), 24h dedup of repeated saves, retention by age+count, config (retention_days/max_entries), and an `IAuditPlugin` viewer that overrides SimpleAudit. Build/vet/test green; links into the full `fts5` binary.
