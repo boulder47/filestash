@@ -19,6 +19,20 @@ var SambaCache AppCache
 func init() {
 	Backend.Register("samba", Samba{})
 
+	Hooks.Register.Onload(func() {
+		Config.Get("samba.healthcheck").Schema(func(f *FormElement) *FormElement {
+			if f == nil {
+				f = &FormElement{}
+			}
+			f.Id = "samba_healthcheck"
+			f.Name = "healthcheck"
+			f.Type = "boolean"
+			f.Default = true
+			f.Description = "Probe idle pooled SMB sessions and reconnect stale ones"
+			return f
+		})
+	})
+
 	SambaCache = NewAppCache()
 	SambaCache.OnEvict(func(key string, value interface{}) {
 		smb := value.(*Samba)
@@ -41,6 +55,51 @@ type Samba struct {
 	share    map[string]*smb2.Share
 	inflight *atomic.Int32
 	session  *smb2.Session
+	lastUsed *atomic.Int64 // unix seconds of the last time this pooled session was handed out
+}
+
+// sambaIdleProbeSeconds: a pooled session used more recently than this is
+// assumed alive and handed back without a probe (keeps the hot path free).
+const sambaIdleProbeSeconds int64 = 30
+
+func shouldProbe(lastUsedUnix, nowUnix, idleThreshold int64) bool {
+	return nowUnix-lastUsedUnix >= idleThreshold
+}
+
+func healthCheckEnabled() bool {
+	if b, ok := Config.Get("samba.healthcheck").Interface().(bool); ok {
+		return b
+	}
+	return true // default on
+}
+
+// isAlive decides whether a pooled session can be reused. Recently-used
+// sessions skip the probe entirely (no added latency); only idle ones are
+// checked, and only when the health check is enabled.
+func (smb Samba) isAlive() bool {
+	now := time.Now().Unix()
+	last := int64(0)
+	if smb.lastUsed != nil {
+		last = smb.lastUsed.Load()
+	}
+	alive := true
+	if healthCheckEnabled() && shouldProbe(last, now, sambaIdleProbeSeconds) {
+		alive = smb.probe()
+	}
+	if alive && smb.lastUsed != nil {
+		smb.lastUsed.Store(now)
+	}
+	return alive
+}
+
+// probe does one cheap round-trip to confirm the SMB connection is live.
+func (smb Samba) probe() bool {
+	for _, sh := range smb.share {
+		_, err := sh.Stat(".")
+		return err == nil
+	}
+	_, err := smb.session.ListSharenames()
+	return err == nil
 }
 
 func (smb Samba) Init(params map[string]string, app *App) (IBackend, error) {
@@ -66,7 +125,14 @@ func (smb Samba) Init(params map[string]string, app *App) (IBackend, error) {
 		params["port"] = "445"
 	}
 	if c := SambaCache.Get(params); c != nil {
-		return c.(*Samba), nil
+		cached := c.(*Samba)
+		if cached.isAlive() {
+			return cached, nil
+		}
+		// Stale pooled session (idle server timeout, blip, server restart):
+		// evict it and fall through to establish a fresh connection.
+		Log.Debug("plg_backend_samba::stale pooled session, reconnecting host[%s]", params["host"])
+		SambaCache.Del(params)
 	}
 
 	host := fmt.Sprintf("%s:%s", params["host"], params["port"])
@@ -78,6 +144,8 @@ func (smb Samba) Init(params map[string]string, app *App) (IBackend, error) {
 
 	smb.share = make(map[string]*smb2.Share, 0)
 	smb.inflight = &atomic.Int32{}
+	smb.lastUsed = &atomic.Int64{}
+	smb.lastUsed.Store(time.Now().Unix())
 	smb.session, err = (&smb2.Dialer{
 		Initiator: &smb2.NTLMInitiator{
 			User: func() string {

@@ -59,10 +59,10 @@ Feature ideas are distilled from [`sambee-app/sambee`](https://github.com/sambee
 
 ## Phase 2 — SMB performance & correctness
 
-### SMB-1 — SMB connection pool / reuse · `plg_backend_samba` · **M**
-- **What:** thread-safe pool keyed by (host, credentials), reusing `smb2.Session`/`Share` across requests instead of dialing per session.
-- **Why:** SMB is chatty/latent; today the backend `net.DialTimeout`s per `Init`. Sambee uses a pool with SMB "credit" accounting.
-- **Risks:** credential isolation (never share a session across identities); idle eviction; reconnect on broken pipe.
+### SMB-1 — Pooled-session reuse + stale reconnect · `plg_backend_samba` · **M** · ✅ (re-scoped)
+- **Finding:** the backend **already pools** `smb2.Session`/`Share` via `SambaCache`, keyed by the full params (incl. credentials, so no cross-identity reuse), with a 5-min idle TTL and an `inflight`-guarded eviction. "Add pooling" was therefore the wrong framing.
+- **Done:** the real gap was reusing a **dead** cached session (idle server timeout, blip, restart) with no check. Added an idle-gated liveness probe — sessions used within `sambaIdleProbeSeconds` (30s) are handed back untouched (hot path unchanged); idle ones are probed (cheap `Stat(".")`), and a dead session is evicted and re-dialed. Gated by a `samba.healthcheck` config flag (default on) as a kill-switch.
+- **Still open:** the live probe/reconnect must be validated against a real NAS (not integration-testable in CI). Follow-ups: make the idle TTL configurable; classify broken-pipe errors mid-operation for in-flight reconnect.
 
 ### SMB-2 — Directory listing cache + index · backend wrapper / `Metadata` · **M**
 - **What:** short-TTL cache of `Ls` results + an optional background index for fast navigation/search over latent shares.
