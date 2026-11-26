@@ -64,9 +64,10 @@ Feature ideas are distilled from [`sambee-app/sambee`](https://github.com/sambee
 - **Done:** the real gap was reusing a **dead** cached session (idle server timeout, blip, restart) with no check. Added an idle-gated liveness probe — sessions used within `sambaIdleProbeSeconds` (30s) are handed back untouched (hot path unchanged); idle ones are probed (cheap `Stat(".")`), and a dead session is evicted and re-dialed. Gated by a `samba.healthcheck` config flag (default on) as a kill-switch.
 - **Still open:** the live probe/reconnect must be validated against a real NAS (not integration-testable in CI). Follow-ups: make the idle TTL configurable; classify broken-pipe errors mid-operation for in-flight reconnect.
 
-### SMB-2 — Directory listing cache + index · backend wrapper / `Metadata` · **M**
-- **What:** short-TTL cache of `Ls` results + an optional background index for fast navigation/search over latent shares.
-- **Risks:** invalidation (tie to SMB-4 monitoring where available); bound memory.
+### SMB-2 — Directory listing cache · `plg_backend_samba` · **M** · ✅
+- **Done:** a short-TTL (`samba.ls_cache_seconds`, default 10s, 0 disables) cache of `Ls` results, stored on the pooled `*Samba` so it is scoped to one connection/identity and dies with the session. Mutations through the session (Mkdir/Rm/Mv/Save/Touch) invalidate the affected directory key(s), so the only staleness window is cross-session writes within the TTL. Memory is bounded (expired-purge at a cap; short TTL). `"/"` (share list) is not cached.
+- **Still open:** cross-session invalidation is time-based only until SMB-4 (live monitoring) lands; an optional background index for search is deferred.
+- **Risks:** bound memory (handled); cross-session staleness ≤ TTL.
 
 ### SMB-3 — File lock manager · `Middleware`/service · **M**
 - **What:** advisory locks to prevent concurrent-edit clobbering of the same file across users/sessions.
