@@ -32,6 +32,7 @@ import (
 	_ "github.com/mickael-kerjean/filestash/server/plugin/plg_editor_wopi"
 	_ "github.com/mickael-kerjean/filestash/server/plugin/plg_handler_console"
 	_ "github.com/mickael-kerjean/filestash/server/plugin/plg_handler_mcp"
+	_ "github.com/mickael-kerjean/filestash/server/plugin/plg_handler_metrics"
 	_ "github.com/mickael-kerjean/filestash/server/plugin/plg_handler_site"
 	_ "github.com/mickael-kerjean/filestash/server/plugin/plg_image_ascii"
 	_ "github.com/mickael-kerjean/filestash/server/plugin/plg_image_c"
