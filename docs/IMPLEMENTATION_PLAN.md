@@ -69,9 +69,10 @@ Feature ideas are distilled from [`sambee-app/sambee`](https://github.com/sambee
 - **Still open:** cross-session invalidation is time-based only until SMB-4 (live monitoring) lands; an optional background index for search is deferred.
 - **Risks:** bound memory (handled); cross-session staleness ≤ TTL.
 
-### SMB-3 — File lock manager · `Middleware`/service · **M**
-- **What:** advisory locks to prevent concurrent-edit clobbering of the same file across users/sessions.
-- **Approach:** in-process lock registry keyed by connection+path with TTL + heartbeat from the editor; surfaced in the UI.
+### SMB-3 — File lock manager · `plg_handler_locks` · **M** · ✅ (backend; UI deferred)
+- **Done (backend):** `plg_handler_locks` — an in-process advisory lock registry (TTL, acquire/refresh/release, conflict detection, bounded) exposed as session-aware endpoints `POST/PUT/DELETE/GET /api/lock` and `GET /api/locks`. Locks are keyed by a **user-independent** resource (server+share+path), owner = `GenerateID`; the token secret guards refresh/release.
+- **Advisory by design:** adds endpoints only; it does **not** enforce at the storage layer, so it cannot block legitimate I/O (zero regression risk).
+- **Still open (UI):** wire the editor to acquire on open, heartbeat via `PUT`, release on close, and warn on conflict — a frontend task (RxJS SPA). Optional later: opt-in `Save` enforcement behind a default-off flag.
 
 ### SMB-4 — Live directory monitoring → WebSocket push · `HttpEndpoint` (WS) + `directory_monitor` service · **L**
 - **What:** push "directory changed" events to the browser so listings update live for multiple users.

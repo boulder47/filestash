@@ -32,6 +32,7 @@ import (
 	_ "github.com/mickael-kerjean/filestash/server/plugin/plg_editor_codemirror"
 	_ "github.com/mickael-kerjean/filestash/server/plugin/plg_editor_wopi"
 	_ "github.com/mickael-kerjean/filestash/server/plugin/plg_handler_console"
+	_ "github.com/mickael-kerjean/filestash/server/plugin/plg_handler_locks"
 	_ "github.com/mickael-kerjean/filestash/server/plugin/plg_handler_mcp"
 	_ "github.com/mickael-kerjean/filestash/server/plugin/plg_handler_metrics"
 	_ "github.com/mickael-kerjean/filestash/server/plugin/plg_handler_site"
